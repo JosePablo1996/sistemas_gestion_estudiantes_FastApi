@@ -83,21 +83,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configuración CORS
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://localhost:3000",
-    "https://localhost:5173",
-]
-
-if os.getenv("RENDER"):
-    render_origin = os.getenv("RENDER_FRONTEND_URL", "https://*.onrender.com")
-    origins.append(render_origin)
-
+# Configuración CORS ACTUALIZADA - Permite todos los orígenes para desarrollo
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Permite todos los orígenes
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
