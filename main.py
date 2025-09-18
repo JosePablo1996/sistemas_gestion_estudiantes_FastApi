@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
@@ -8,21 +9,28 @@ import os
 from typing import List
 import logging
 
-# Configuración de logging
-logging.basicConfig(level=logging.INFO)
+# Configuración de logging para un mejor seguimiento
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Configuración de la base de datos - compatible con Render
+# Configuración de la base de datos
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Si no hay DATABASE_URL (desarrollo local), usar variable alternativa
+# Si no hay DATABASE_URL (desarrollo local), usa la configuración manual
 if not DATABASE_URL:
+    DB_USER = "postgres"
     DB_PASSWORD = os.getenv("DB_PASSWORD", "uPxBHn]Ag9H~N4'K")
+    DB_HOST = "20.84.99.214"
+    DB_PORT = "443"
+    DB_NAME = "mq100216"
     ENCODED_PASSWORD = quote_plus(DB_PASSWORD)
-    DATABASE_URL = f"postgresql://postgres:{ENCODED_PASSWORD}@20.84.99.214:443/mq100216"
+    DATABASE_URL = f"postgresql://{DB_USER}:{ENCODED_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     logger.info("Usando configuración de base de datos local")
+else:
+    logger.info("Usando DATABASE_URL de entorno de producción")
 
-# Configuración de SQLAlchemy con manejo mejorado de errores
+# Inicialización de SQLAlchemy
 try:
     engine = create_engine(
         DATABASE_URL, 
@@ -33,24 +41,20 @@ try:
     )
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base = declarative_base()
-    logger.info("Motor de base de datos configurado correctamente")
-except Exception as e:
-    logger.error(f"Error al conectar con la base de datos: {e}")
-    raise
-
-# Modelo de la base de datos
-class Estudiante(Base):
-    __tablename__ = "estudiantes"
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    nombre = Column(String(100), index=True)
-    edad = Column(Integer)
-
-# Crear tablas si no existen
-try:
+    
+    # Modelo de la base de datos
+    class Estudiante(Base):
+        __tablename__ = "estudiantes"
+        id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+        nombre = Column(String(100), index=True)
+        edad = Column(Integer)
+    
+    # Crear tablas si no existen
     Base.metadata.create_all(bind=engine)
     logger.info("Tablas verificadas/creadas correctamente")
 except Exception as e:
-    logger.error(f"Error al crear tablas: {e}")
+    logger.error(f"Error al conectar con la base de datos: {e}")
+    raise
 
 # Esquemas Pydantic
 class EstudianteCreate(BaseModel):
@@ -72,19 +76,17 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configuración CORS para React - MÁS SEGURA
+# Configuración CORS
 origins = [
-    "http://localhost:3000",    # React desarrollo local
-    "http://localhost:5173",    # React desarrollo con Vite
-    "https://localhost:3000",   # HTTPS local
-    "https://localhost:5173",   # HTTPS local con Vite
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://localhost:3000",
+    "https://localhost:5173",
 ]
 
-# Permitir todos los orígenes solo en desarrollo
-if os.getenv("RENDER", "").lower() == "true":
-    origins.append("https://*.render.com")
-else:
-    origins.append("*")  # Solo para desarrollo
+if os.getenv("RENDER"):
+    render_origin = os.getenv("RENDER_FRONTEND_URL", "https://*.onrender.com")
+    origins.append(render_origin)
 
 app.add_middleware(
     CORSMiddleware,
@@ -194,7 +196,6 @@ def eliminar_estudiante(id: int, db: Session = Depends(get_db)):
 @app.get("/health")
 async def health_check():
     try:
-        # Verificar conexión a la base de datos
         with engine.connect() as conn:
             conn.execute("SELECT 1")
         
@@ -206,25 +207,15 @@ async def health_check():
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        return {
-            "status": "unhealthy", 
-            "message": "Error en la conexión a la base de datos",
-            "database": "disconnected",
-            "error": str(e)[:100]  # Limitar longitud del error
-        }, 503
-
-# Info endpoint para debugging (solo en desarrollo)
-@app.get("/info")
-async def info():
-    if os.getenv("RENDER"):
-        return {"message": "Info endpoint disabled in production"}
-    
-    return {
-        "database_configured": bool(DATABASE_URL),
-        "db_password_set": bool(os.getenv("DB_PASSWORD")),
-        "environment": "production" if os.getenv("RENDER") else "development",
-        "render_env": os.getenv("RENDER", "false")
-    }
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy", 
+                "message": "Error en la conexión a la base de datos",
+                "database": "disconnected",
+                "error": str(e)
+            }
+        )
 
 # Manejo de excepciones global
 @app.exception_handler(Exception)
