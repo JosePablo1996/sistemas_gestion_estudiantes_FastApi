@@ -1,10 +1,30 @@
+# `render.yaml` para el despliegue de una API de Python
+# Versión actualizada para un despliegue más robusto.
+
+# Define el servicio web principal
 services:
   - type: web
+    # El nombre de tu servicio, que se usará en la URL de Render.
     name: api-estudiantes
+    # El entorno de construcción para tu aplicación. 'python' es una opción simple y común.
     env: python
+    # El plan de servicio. 'free' es genial para empezar.
     plan: free
+    # El comando que Render ejecutará para preparar tu entorno.
+    # Esto garantiza que las dependencias estén actualizadas.
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    # El comando para iniciar tu aplicación una vez que se ha construido.
+    # Usa `uvicorn` para ejecutar tu archivo `main.py`.
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    # Variables de entorno para tu aplicación.
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: DB_USER
+        value: postgres
+      - key: DB_PASS
+        value: "uPxBHn]Ag9H~N4'K"
+      - key: DB_HOST
+        value: 20.84.99.214
+      - key: DB_PORT
+        value: "443"

@@ -15,20 +15,27 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 # Configuración de la base de datos
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Usa las variables de entorno definidas en render.yaml para construir la URL de la base de datos.
+# Esto asegura que la aplicación se conecte correctamente en el entorno de producción.
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASS")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME = "mq100216" # Nombre de la base de datos, agrégalo a las variables de entorno si lo necesitas cambiar
 
-# Si no hay DATABASE_URL (desarrollo local), usa la configuración manual
-if not DATABASE_URL:
+if all([DB_USER, DB_PASSWORD, DB_HOST, DB_PORT]):
+    ENCODED_PASSWORD = quote_plus(DB_PASSWORD)
+    DATABASE_URL = f"postgresql://{DB_USER}:{ENCODED_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    logger.info("Usando configuración de base de datos de entorno de producción")
+else:
+    # Si las variables de entorno no están disponibles (desarrollo local), usa la configuración manual
     DB_USER = "postgres"
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "uPxBHn]Ag9H~N4'K")
+    DB_PASSWORD = "uPxBHn]Ag9H~N4'K"
     DB_HOST = "20.84.99.214"
     DB_PORT = "443"
-    DB_NAME = "mq100216"
     ENCODED_PASSWORD = quote_plus(DB_PASSWORD)
     DATABASE_URL = f"postgresql://{DB_USER}:{ENCODED_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     logger.info("Usando configuración de base de datos local")
-else:
-    logger.info("Usando DATABASE_URL de entorno de producción")
 
 # Inicialización de SQLAlchemy
 try:
